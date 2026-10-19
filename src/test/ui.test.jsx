@@ -5,6 +5,7 @@ import { ThemeProvider } from '@mui/material';
 import { AppProvider, useApp } from '../context/AppContext';
 import { makeTheme } from '../theme';
 import OperationLogs from '../pages/OperationLogs';
+import AppShell from '../components/AppShell';
 import { gen, log, memoryStorage } from './fixtures';
 
 const seed = data => { globalThis.localStorage = memoryStorage(); localStorage.setItem('generator-tracker-v1', JSON.stringify({ version: '1.0', meta: {}, ...data })); };
@@ -65,3 +66,24 @@ describe('طبقة الخدمة تمنع التحايل على الواجهة', 
   expect(grabApp().makeDefault('c')).toBe(false);
  });
 });
+
+describe('القائمة الجانبية وترتيب النموذج', () => {
+ it('حقل المولد يسبق حقل التاريخ في نموذج السجل الجديد', () => {
+  seed(data());
+  const html = renderAt('/logs');
+  const form = html.slice(html.indexOf('إضافة سجل تشغيل'));
+  expect(form.indexOf('>المولد<')).toBeGreaterThan(-1);
+  expect(form.indexOf('>المولد<')).toBeLessThan(form.indexOf('>التاريخ<'));
+ });
+ it('القائمة تعرض زر «مسح شامل» بلون الخطر أسفل «نسخة احتياطية» ثم نص الحقوق في سطرين', () => {
+  seed(data());
+  const html = renderToString(<ThemeProvider theme={makeTheme('light')}><AppProvider><MemoryRouter><Routes><Route element={<AppShell mode="light" setMode={() => {}} />}><Route index element={null} /></Route></Routes></MemoryRouter></AppProvider></ThemeProvider>);
+  const backupAt = html.indexOf('نسخة احتياطية</button>'), wipeAt = html.indexOf('مسح شامل</button>');
+  expect(backupAt).toBeGreaterThan(-1);
+  expect(wipeAt).toBeGreaterThan(backupAt);
+  expect(html.slice(html.lastIndexOf('<button', wipeAt), wipeAt)).toContain('MuiButton-colorError');
+  const credit = html.slice(wipeAt).replace(/<style[^>]*>.*?<\/style>/g, '');
+  expect(credit).toMatch(/<div[^>]*>برمجة وتطوير:<\/div><div[^>]*>م\. محمد أبو زهري<\/div>/);
+ });
+});
+

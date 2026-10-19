@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import ExcelJS from 'exceljs';
-import { buildExcelWorkbook, describeFilters, enrich, EXCEL_HEADER_ROW, EXCEL_SHEET_NAME, filterLogs, reportLabels } from './reportService';
+import { buildExcelWorkbook, describeFilters, enrich, EXCEL_FONT, EXCEL_HEADER_ROW, EXCEL_SHEET_NAME, filterLogs, reportLabels } from './reportService';
 import { gen, log } from '../test/fixtures';
 
 const generators = [gen('a', { number: 'G-1', name: 'مولد الورشة' }), gen('b', { number: 'G-2', name: 'مولد المكاتب' })];
@@ -54,6 +54,9 @@ describe('التقارير وExcel', () => {
   expect(first.getCell(cols.indexOf('currentReading') + 1).numFmt).toMatch(/#,##0/);
   ws.columns.forEach(c => { expect(c.width).toBeGreaterThanOrEqual(12); expect(c.width).toBeLessThanOrEqual(50); });
   expect(ws.pageSetup).toMatchObject({ orientation: 'landscape', fitToWidth: 1, printTitlesRow: '5:5', paperSize: 9 });
+  expect(EXCEL_FONT).toBe('Times New Roman');
+  const fonts = new Set(); ws.eachRow(row => row.eachCell(c => fonts.add(c.font?.name)));
+  expect([...fonts]).toEqual(['Times New Roman']);
  });
  it('يصوغ الفلاتر المطبقة بالعربية لا بأسماء المفاتيح', () => {
   const text = describeFilters({ ...init, q: 'ورشة', generator: 'a', type: 'meterReset', from: '2026-10-01', hours: '0' }, generators);

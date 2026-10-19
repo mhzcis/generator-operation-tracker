@@ -12,6 +12,8 @@ const thin={style:'thin',color:{argb:XL.border}},allBorders={top:thin,left:thin,
 const numFmt=v=>Number.isInteger(Number(v))?'#,##0':'#,##0.0#';
 const cellValue=(r,c)=>{const v=r[c]??'';if(c==='date'&&/^\d{4}-\d{2}-\d{2}$/.test(v)){const[y,m,d]=v.split('-').map(Number);return new Date(Date.UTC(y,m-1,d))}if(NUMERIC.includes(c)&&v!==''&&Number.isFinite(Number(v)))return Number(v);return v};
 const displayLength=(r,c)=>c==='date'?10:String(r[c]??'').length;
+// خط رسمي متوفر في Excel على Windows وmacOS ويدعم العربية جيدًا، ويُطبق على كل الخلايا.
+export const EXCEL_FONT='Times New Roman';
 export const EXCEL_SHEET_NAME='تقرير التشغيل';
 export const EXCEL_HEADER_ROW=5;
 export function buildExcelWorkbook(ExcelJS,data,columns,{filtersText='',createdAt=new Date()}={}){
@@ -22,10 +24,10 @@ export function buildExcelWorkbook(ExcelJS,data,columns,{filtersText='',createdA
   headerFooter:{oddFooter:'&Cصفحة &P من &N'}});
  const meta=[['تقرير تشغيل المولدات'],[`تاريخ ووقت الإنشاء: ${createdAt.toLocaleString('ar',{dateStyle:'full',timeStyle:'short'})}`],[`عدد النتائج: ${data.length}`],[`الفلاتر المطبقة: ${filtersText||'لا يوجد'}`]];
  meta.forEach(([text],i)=>{const row=ws.getRow(i+1);row.getCell(1).value=text;if(n>1)ws.mergeCells(i+1,1,i+1,n);const cell=row.getCell(1);
-  if(i===0){row.height=36;cell.font={name:'Tahoma',size:18,bold:true,color:{argb:XL.white}};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:XL.primary}};cell.alignment={horizontal:'center',vertical:'middle',readingOrder:'rtl'};cell.border={bottom:{style:'medium',color:{argb:XL.accent}}}}
-  else{row.height=i===3?Math.max(22,Math.ceil(text.length/Math.max(20,n*14))*18):22;cell.font={name:'Tahoma',size:11,bold:i<3,color:{argb:XL.text}};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:XL.metaFill}};cell.alignment={horizontal:'right',vertical:'middle',wrapText:true,readingOrder:'rtl'}}});
- const head=ws.getRow(H);head.height=28;columns.forEach((c,i)=>{const cell=head.getCell(i+1);cell.value=labels[c];cell.font={name:'Tahoma',size:11,bold:true,color:{argb:XL.white}};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:XL.dark}};cell.alignment={horizontal:'center',vertical:'middle',wrapText:true,readingOrder:'rtl'};cell.border={...allBorders,bottom:{style:'medium',color:{argb:XL.accent}}}});
- data.forEach((r,ri)=>{const row=ws.getRow(H+1+ri);columns.forEach((c,i)=>{const cell=row.getCell(i+1),v=cellValue(r,c);cell.value=v;cell.font={name:'Tahoma',size:10,color:{argb:XL.text},bold:c==='operatingHours'};cell.border=allBorders;
+  if(i===0){row.height=36;cell.font={name:EXCEL_FONT,size:18,bold:true,color:{argb:XL.white}};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:XL.primary}};cell.alignment={horizontal:'center',vertical:'middle',readingOrder:'rtl'};cell.border={bottom:{style:'medium',color:{argb:XL.accent}}}}
+  else{row.height=i===3?Math.max(22,Math.ceil(text.length/Math.max(20,n*14))*18):22;cell.font={name:EXCEL_FONT,size:11,bold:i<3,color:{argb:XL.text}};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:XL.metaFill}};cell.alignment={horizontal:'right',vertical:'middle',wrapText:true,readingOrder:'rtl'}}});
+ const head=ws.getRow(H);head.height=28;columns.forEach((c,i)=>{const cell=head.getCell(i+1);cell.value=labels[c];cell.font={name:EXCEL_FONT,size:11,bold:true,color:{argb:XL.white}};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:XL.dark}};cell.alignment={horizontal:'center',vertical:'middle',wrapText:true,readingOrder:'rtl'};cell.border={...allBorders,bottom:{style:'medium',color:{argb:XL.accent}}}});
+ data.forEach((r,ri)=>{const row=ws.getRow(H+1+ri);columns.forEach((c,i)=>{const cell=row.getCell(i+1),v=cellValue(r,c);cell.value=v;cell.font={name:EXCEL_FONT,size:10,color:{argb:XL.text},bold:c==='operatingHours'};cell.border=allBorders;
   if(ri%2)cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:XL.zebra}};
   if(c==='date')cell.numFmt='dd/mm/yyyy';else if(typeof v==='number')cell.numFmt=numFmt(v);
   const right=c==='notes'||c==='generatorName'||c==='location';cell.alignment={vertical:'middle',readingOrder:'rtl',horizontal:right?'right':'center',indent:right?1:0,wrapText:c==='notes'}})});

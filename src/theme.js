@@ -10,6 +10,8 @@ export const makeTheme=mode=>createTheme({direction:'rtl',palette:{mode,primary:
  MuiFormHelperText:{styleOverrides:{root:{textAlign:'right'}}},
  MuiFormControlLabel:{styleOverrides:{root:{marginLeft:16,marginRight:-11}}},
  MuiTableCell:{styleOverrides:{root:{textAlign:'right'}}},
+ MuiListItemButton:{styleOverrides:{root:{textAlign:'right'}}},
+ MuiListItemText:{styleOverrides:{root:{textAlign:'right'}}},
  MuiDialogTitle:{styleOverrides:{root:{textAlign:'right'}}},
  MuiDialogContent:{styleOverrides:{root:{textAlign:'right'}}},
  MuiChip:{styleOverrides:{icon:{marginLeft:-6,marginRight:5}}},

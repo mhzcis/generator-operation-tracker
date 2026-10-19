@@ -46,3 +46,7 @@ export const validateBackup=(x,today=todayISO())=>{
 export const parseBackup=async file=>{let x;try{x=JSON.parse(await file.text())}catch{fail('الملف تالف أو ليس ملف JSON صالحًا')}return validateBackup(x)};
 // الاستعادة: نسخة أمان من البيانات الحالية أولًا، ثم التحقق الكامل، ثم الاستبدال فقط عند نجاح كل شيء.
 export const restoreBackup=async(file,current,apply,backup=downloadBackup)=>{if(!backup(current))fail('تعذر بدء تنزيل نسخة الأمان من البيانات الحالية');const next=await parseBackup(file);apply(next);return next};
+// المسح الشامل: كلمة التأكيد المطلوبة، ثم نسخة أمان أولًا، ولا يُمسح شيء إذا تعذر بدء تنزيلها.
+export const WIPE_CONFIRM_WORD='مسح';
+export const isWipeConfirmed=text=>String(text??'').trim()===WIPE_CONFIRM_WORD;
+export const wipeAllData=(current,clear,backup=downloadBackup)=>{if(!backup(current))throw new Error('تعذر بدء تنزيل نسخة الأمان، لذلك لم يُمسح أي شيء. اسمح بالتنزيلات لهذا الموقع ثم أعد المحاولة.');clear();return true};

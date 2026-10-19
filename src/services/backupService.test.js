@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { parseBackup, restoreBackup, validateBackup } from './backupService';
+import { isWipeConfirmed, parseBackup, restoreBackup, validateBackup, wipeAllData } from './backupService';
 import { gen, log, TODAY } from '../test/fixtures';
 
 const file = content => ({ text: async () => (typeof content === 'string' ? content : JSON.stringify(content)) });
@@ -80,5 +80,22 @@ describe('النسخ الاحتياطي والاستعادة', () => {
   vi.useRealTimers();
   expect(apply).toHaveBeenCalledTimes(1);
   expect(apply.mock.calls[0][0].logs).toHaveLength(3);
+ });
+ it('المسح الشامل يتطلب كتابة كلمة التأكيد «مسح» حرفيًا', () => {
+  expect(isWipeConfirmed('مسح')).toBe(true);
+  expect(isWipeConfirmed(' مسح ')).toBe(true);
+  expect(isWipeConfirmed('')).toBe(false);
+  expect(isWipeConfirmed('نعم')).toBe(false);
+  expect(isWipeConfirmed(undefined)).toBe(false);
+ });
+ it('المسح الشامل ينزل نسخة أمان من البيانات الحالية أولًا ثم يمسح', () => {
+  const current = backup([gen('a')], []), order = [];
+  wipeAllData(current, () => order.push('clear'), d => { order.push(['backup', d]); return true; });
+  expect(order).toEqual([['backup', current], 'clear']);
+ });
+ it('لا يمسح شيئًا إذا تعذر بدء تنزيل نسخة الأمان', () => {
+  const clear = vi.fn();
+  expect(() => wipeAllData(backup([], []), clear, () => false)).toThrow('لم يُمسح أي شيء');
+  expect(clear).not.toHaveBeenCalled();
  });
 });
