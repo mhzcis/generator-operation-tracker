@@ -1,19 +1,24 @@
 import { createContext,useContext,useEffect,useMemo,useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import { loadData,saveData } from '../services/storageService';
-import { downloadBackup,parseBackup } from '../services/backupService';
+import { downloadBackup,restoreBackup } from '../services/backupService';
 import { dayName,isoNow } from '../utils/dates';
-import { generatorLogs,latestLog } from '../utils/calculations';
+import { generatorLogs,latestLog,previousLog } from '../utils/calculations';
+import { normalizeDefaultGenerator,setDefaultGenerator } from '../utils/generators';
 import { validateGenerator,validateLog } from '../utils/validators';
 const C=createContext(); export const useApp=()=>useContext(C);
 export function AppProvider({children}){const [data,setData]=useState(loadData);const [notice,setNotice]=useState(null);useEffect(()=>saveData(data),[data]);
- const commit=(next,msg,backup=true)=>{setData(next);if(backup)downloadBackup(next);setNotice({type:'success',text:msg})};
- const addGenerator=form=>{const e=validateGenerator(form,data.generators);if(Object.keys(e).length)return e;const now=isoNow();commit({...data,generators:[...data.generators,{...form,id:uuid(),createdAt:now,updatedAt:now}]},'تمت إضافة المولد');return {}};
- const updateGenerator=form=>{const e=validateGenerator(form,data.generators);if(Object.keys(e).length)return e;commit({...data,generators:data.generators.map(x=>x.id===form.id?{...x,...form,updatedAt:isoNow()}:x)},'تم تحديث المولد');return {}};
- const saveLog=form=>{const gl=generatorLogs(data.logs,form.generatorId),editing=!!form.id,last=gl[0];if(editing&&last?.id!==form.id)return {general:'لا يمكن تعديل سوى آخر سجل للمولد'};
+ const BACKUP_FAILED='تعذر بدء تنزيل النسخة الاحتياطية تلقائيًا، ربما منعه المتصفح. استخدم زر «نسخة احتياطية» لتنزيلها يدويًا.';
+ const commit=(next,msg,backup=true)=>{setData(next);const started=backup?downloadBackup(next):true;setNotice(started?{type:'success',text:backup?`${msg}. تم بدء تنزيل النسخة الاحتياطية`:msg}:{type:'warning',text:`${msg}. ${BACKUP_FAILED}`})};
+ const addGenerator=form=>{const e=validateGenerator(form,data.generators);if(Object.keys(e).length)return e;const now=isoNow();commit({...data,generators:[...data.generators,{...form,isDefault:false,id:uuid(),createdAt:now,updatedAt:now}]},'تمت إضافة المولد');return {}};
+ const updateGenerator=form=>{const e=validateGenerator(form,data.generators);if(Object.keys(e).length)return e;const generators=normalizeDefaultGenerator(data.generators.map(x=>x.id===form.id?{...x,...form,updatedAt:isoNow()}:x)),lostDefault=data.generators.find(x=>x.id===form.id)?.isDefault===true&&!generators.find(x=>x.id===form.id).isDefault;commit({...data,generators},lostDefault?'تم تحديث المولد وإلغاء تعيينه افتراضيًا لأنه غير نشط':'تم تحديث المولد');return {}};
+ const makeDefault=id=>{const g=data.generators.find(x=>x.id===id);if(!g||g.status!=='active'){setNotice({type:'error',text:'لا يمكن تعيين مولد غير نشط افتراضيًا'});return false}const now=isoNow();commit({...data,generators:setDefaultGenerator(data.generators,id).map((x,i)=>x.isDefault===(data.generators[i].isDefault===true)?x:{...x,updatedAt:now})},'تم تعيين المولد الافتراضي');return true};
+ const saveLog=input=>{const gl=generatorLogs(data.logs,input.generatorId),editing=!!input.id,last=gl[0];if(editing&&last?.id!==input.id)return {general:'لا يمكن تعديل سوى آخر سجل للمولد'};
+   const prev=previousLog(data.logs,input.generatorId,input.id),form=prev?{...input,previousReading:prev.currentReading}:input;
    const e=validateLog(form,data.logs);if(Object.keys(e).length)return e;
    const normalized={...form,day:dayName(form.date),previousReading:Number(form.previousReading),currentReading:Number(form.currentReading),operatingHours:form.recordType==='meterReset'?0:Number(form.currentReading)-Number(form.previousReading)};const now=isoNow();let logs;
    if(editing)logs=data.logs.map(x=>x.id===form.id?{...x,...normalized,edited:true,updatedAt:now}:x);else logs=[...data.logs,{...normalized,id:uuid(),createdAt:now,updatedAt:now,edited:false}];commit({...data,logs},editing?'تم تحديث السجل':'تم حفظ السجل');return {id:editing?form.id:logs.at(-1).id};};
  const deleteLog=id=>{const target=data.logs.find(x=>x.id===id);if(!target)return false;if(latestLog(data.logs,target.generatorId)?.id!==id){setNotice({type:'error',text:'لا يمكن حذف سوى آخر سجل للمولد'});return false}commit({...data,logs:data.logs.filter(x=>x.id!==id)},'تم حذف السجل');return true};
- const restore=async file=>{try{downloadBackup(data);const next=await parseBackup(file);setData(next);saveData(next);setNotice({type:'success',text:'تمت استعادة النسخة الاحتياطية بنجاح'})}catch(e){setNotice({type:'error',text:e.message})}};
- const value=useMemo(()=>({data,notice,setNotice,addGenerator,updateGenerator,saveLog,deleteLog,restore,manualBackup:()=>downloadBackup(data)}),[data,notice]);return <C.Provider value={value}>{children}</C.Provider>}
+ const restore=async file=>{try{await restoreBackup(file,data,next=>{setData(next);saveData(next)});setNotice({type:'success',text:'تم بدء تنزيل نسخة أمان من البيانات الحالية، وتمت استعادة النسخة الاحتياطية بنجاح'})}catch(e){setNotice({type:'error',text:e.message})}};
+ const manualBackup=()=>setNotice(downloadBackup(data)?{type:'success',text:'تم بدء تنزيل النسخة الاحتياطية'}:{type:'error',text:'تعذر بدء تنزيل النسخة الاحتياطية، ربما منعه المتصفح. اسمح بالتنزيلات لهذا الموقع ثم أعد المحاولة.'});
+ const value=useMemo(()=>({data,notice,setNotice,addGenerator,updateGenerator,makeDefault,saveLog,deleteLog,restore,manualBackup}),[data,notice]);return <C.Provider value={value}>{children}</C.Provider>}
