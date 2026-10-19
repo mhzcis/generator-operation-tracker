@@ -1,0 +1,1 @@
+import{Button,Stack,Typography}from'@mui/material';import{Link}from'react-router-dom';export default()=> <Stack alignItems='center' mt={10}><Typography variant='h2'>404</Typography><Typography>الصفحة غير موجودة</Typography><Button component={Link} to='/'>العودة للوحة التحكم</Button></Stack>;

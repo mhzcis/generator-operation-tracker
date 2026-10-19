@@ -1,0 +1,4 @@
+import { EMPTY_DATA } from '../data/defaultData';
+const KEY='generator-tracker-v1';
+export const loadData=()=>{try{const x=JSON.parse(localStorage.getItem(KEY));return x&&Array.isArray(x.generators)&&Array.isArray(x.logs)?{...EMPTY_DATA,...x}:structuredClone(EMPTY_DATA)}catch{return structuredClone(EMPTY_DATA)}};
+export const saveData=data=>localStorage.setItem(KEY,JSON.stringify(data));
