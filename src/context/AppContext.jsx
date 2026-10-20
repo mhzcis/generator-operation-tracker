@@ -1,26 +1,205 @@
-import { createContext,useContext,useEffect,useMemo,useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { v4 as uuid } from 'uuid';
-import { clearData,loadData,saveData } from '../services/storageService';
+import { clearData, loadData, saveData } from '../services/storageService';
 import { EMPTY_DATA } from '../data/defaultData';
-import { downloadBackup,restoreBackup,wipeAllData } from '../services/backupService';
-import { dayName,isoNow } from '../utils/dates';
-import { generatorLogs,latestLog,previousLog } from '../utils/calculations';
-import { normalizeDefaultGenerator,setDefaultGenerator } from '../utils/generators';
-import { validateGenerator,validateLog } from '../utils/validators';
-const C=createContext(); export const useApp=()=>useContext(C);
-export function AppProvider({children}){const [data,setData]=useState(loadData);const [notice,setNotice]=useState(null);useEffect(()=>saveData(data),[data]);
- const BACKUP_FAILED='تعذر بدء تنزيل النسخة الاحتياطية تلقائيًا، ربما منعه المتصفح. استخدم زر «نسخة احتياطية» لتنزيلها يدويًا.';
- const commit=(next,msg,backup=true)=>{setData(next);const started=backup?downloadBackup(next):true;setNotice(started?{type:'success',text:backup?`${msg}. تم بدء تنزيل النسخة الاحتياطية`:msg}:{type:'warning',text:`${msg}. ${BACKUP_FAILED}`})};
- const addGenerator=form=>{const e=validateGenerator(form,data.generators);if(Object.keys(e).length)return e;const now=isoNow();commit({...data,generators:[...data.generators,{...form,isDefault:false,id:uuid(),createdAt:now,updatedAt:now}]},'تمت إضافة المولد');return {}};
- const updateGenerator=form=>{const e=validateGenerator(form,data.generators);if(Object.keys(e).length)return e;const generators=normalizeDefaultGenerator(data.generators.map(x=>x.id===form.id?{...x,...form,updatedAt:isoNow()}:x)),lostDefault=data.generators.find(x=>x.id===form.id)?.isDefault===true&&!generators.find(x=>x.id===form.id).isDefault;commit({...data,generators},lostDefault?'تم تحديث المولد وإلغاء تعيينه افتراضيًا لأنه غير نشط':'تم تحديث المولد');return {}};
- const makeDefault=id=>{const g=data.generators.find(x=>x.id===id);if(!g||g.status!=='active'){setNotice({type:'error',text:'لا يمكن تعيين مولد غير نشط افتراضيًا'});return false}const now=isoNow();commit({...data,generators:setDefaultGenerator(data.generators,id).map((x,i)=>x.isDefault===(data.generators[i].isDefault===true)?x:{...x,updatedAt:now})},'تم تعيين المولد الافتراضي');return true};
- const saveLog=input=>{const gl=generatorLogs(data.logs,input.generatorId),editing=!!input.id,last=gl[0];if(editing&&last?.id!==input.id)return {general:'لا يمكن تعديل سوى آخر سجل للمولد'};
-   const prev=previousLog(data.logs,input.generatorId,input.id),form=prev?{...input,previousReading:prev.currentReading}:input;
-   const e=validateLog(form,data.logs);if(Object.keys(e).length)return e;
-   const normalized={...form,day:dayName(form.date),previousReading:Number(form.previousReading),currentReading:Number(form.currentReading),operatingHours:form.recordType==='meterReset'?0:Number(form.currentReading)-Number(form.previousReading)};const now=isoNow();let logs;
-   if(editing)logs=data.logs.map(x=>x.id===form.id?{...x,...normalized,edited:true,updatedAt:now}:x);else logs=[...data.logs,{...normalized,id:uuid(),createdAt:now,updatedAt:now,edited:false}];commit({...data,logs},editing?'تم تحديث السجل':'تم حفظ السجل');return {id:editing?form.id:logs.at(-1).id};};
- const deleteLog=id=>{const target=data.logs.find(x=>x.id===id);if(!target)return false;if(latestLog(data.logs,target.generatorId)?.id!==id){setNotice({type:'error',text:'لا يمكن حذف سوى آخر سجل للمولد'});return false}commit({...data,logs:data.logs.filter(x=>x.id!==id)},'تم حذف السجل');return true};
- const restore=async file=>{try{await restoreBackup(file,data,next=>{setData(next);saveData(next)});setNotice({type:'success',text:'تم بدء تنزيل نسخة أمان من البيانات الحالية، وتمت استعادة النسخة الاحتياطية بنجاح'})}catch(e){setNotice({type:'error',text:e.message})}};
- const manualBackup=()=>setNotice(downloadBackup(data)?{type:'success',text:'تم بدء تنزيل النسخة الاحتياطية'}:{type:'error',text:'تعذر بدء تنزيل النسخة الاحتياطية، ربما منعه المتصفح. اسمح بالتنزيلات لهذا الموقع ثم أعد المحاولة.'});
- const wipeAll=()=>{try{wipeAllData(data,()=>{clearData();setData(structuredClone(EMPTY_DATA))});setNotice({type:'success',text:'تم بدء تنزيل نسخة أمان، وتم مسح جميع المولدات والسجلات'});return true}catch(e){setNotice({type:'error',text:e.message});return false}};
- const value=useMemo(()=>({data,notice,setNotice,addGenerator,updateGenerator,makeDefault,saveLog,deleteLog,restore,manualBackup,wipeAll}),[data,notice]);return <C.Provider value={value}>{children}</C.Provider>}
+import { downloadBackup, restoreBackup, wipeAllData } from '../services/backupService';
+import { dayName, isoNow } from '../utils/dates';
+import { generatorLogs, latestLog, previousLog, roundHours } from '../utils/calculations';
+import { normalizeDefaultGenerator, setDefaultGenerator } from '../utils/generators';
+import { validateGenerator, validateLog } from '../utils/validators';
+
+const C = createContext();
+export const useApp = () => useContext(C);
+
+export function AppProvider({ children }) {
+  const [data, setData] = useState(loadData);
+  const [notice, setNotice] = useState(null);
+
+  useEffect(() => {
+    saveData(data);
+  }, [data]);
+
+  const BACKUP_FAILED =
+    'تعذر بدء تنزيل النسخة الاحتياطية تلقائيًا، ربما منعه المتصفح. استخدم زر «نسخة احتياطية» لتنزيلها يدويًا.';
+
+  const commit = (next, msg, backup = true) => {
+    setData(next);
+    const started = backup ? downloadBackup(next) : true;
+    setNotice(
+      started
+        ? { type: 'success', text: backup ? `${msg}. تم بدء تنزيل النسخة الاحتياطية` : msg }
+        : { type: 'warning', text: `${msg}. ${BACKUP_FAILED}` }
+    );
+  };
+
+  const addGenerator = form => {
+    const e = validateGenerator(form, data.generators);
+    if (Object.keys(e).length) return e;
+    const now = isoNow();
+    const entry = {
+      ...form,
+      latitude: form.latitude ?? '',
+      longitude: form.longitude ?? '',
+      isDefault: false,
+      id: uuid(),
+      createdAt: now,
+      updatedAt: now,
+    };
+    commit({ ...data, generators: [...data.generators, entry] }, 'تمت إضافة المولد');
+    return {};
+  };
+
+  const updateGenerator = form => {
+    const e = validateGenerator(form, data.generators);
+    if (Object.keys(e).length) return e;
+    const generators = normalizeDefaultGenerator(
+      data.generators.map(x =>
+        x.id === form.id
+          ? {
+              ...x,
+              ...form,
+              latitude: form.latitude ?? x.latitude ?? '',
+              longitude: form.longitude ?? x.longitude ?? '',
+              updatedAt: isoNow(),
+            }
+          : x
+      )
+    );
+    const lostDefault =
+      data.generators.find(x => x.id === form.id)?.isDefault === true &&
+      !generators.find(x => x.id === form.id).isDefault;
+    commit(
+      { ...data, generators },
+      lostDefault ? 'تم تحديث المولد وإلغاء تعيينه افتراضيًا لأنه غير نشط' : 'تم تحديث المولد'
+    );
+    return {};
+  };
+
+  const makeDefault = id => {
+    const g = data.generators.find(x => x.id === id);
+    if (!g || g.status !== 'active') {
+      setNotice({ type: 'error', text: 'لا يمكن تعيين مولد غير نشط افتراضيًا' });
+      return false;
+    }
+    const now = isoNow();
+    commit(
+      {
+        ...data,
+        generators: setDefaultGenerator(data.generators, id).map((x, i) =>
+          x.isDefault === (data.generators[i].isDefault === true) ? x : { ...x, updatedAt: now }
+        ),
+      },
+      'تم تعيين المولد الافتراضي'
+    );
+    return true;
+  };
+
+  const saveLog = input => {
+    const gl = generatorLogs(data.logs, input.generatorId);
+    const editing = !!input.id;
+    const last = gl[0];
+    if (editing && last?.id !== input.id) {
+      return { general: 'لا يمكن تعديل سوى آخر سجل للمولد' };
+    }
+    const prev = previousLog(data.logs, input.generatorId, input.id);
+    const form = prev ? { ...input, previousReading: prev.currentReading } : input;
+    const e = validateLog(form, data.logs);
+    if (Object.keys(e).length) return e;
+
+    const prevNum = Number(form.previousReading);
+    const currNum = Number(form.currentReading);
+    const normalized = {
+      ...form,
+      day: dayName(form.date),
+      previousReading: prevNum,
+      currentReading: currNum,
+      operatingHours: form.recordType === 'meterReset' ? 0 : roundHours(currNum - prevNum),
+    };
+    const now = isoNow();
+    let logs;
+    if (editing) {
+      logs = data.logs.map(x =>
+        x.id === form.id ? { ...x, ...normalized, edited: true, updatedAt: now } : x
+      );
+    } else {
+      logs = [
+        ...data.logs,
+        { ...normalized, id: uuid(), createdAt: now, updatedAt: now, edited: false },
+      ];
+    }
+    commit({ ...data, logs }, editing ? 'تم تحديث السجل' : 'تم حفظ السجل');
+    return { id: editing ? form.id : logs.at(-1).id };
+  };
+
+  const deleteLog = id => {
+    const target = data.logs.find(x => x.id === id);
+    if (!target) return false;
+    if (latestLog(data.logs, target.generatorId)?.id !== id) {
+      setNotice({ type: 'error', text: 'لا يمكن حذف سوى آخر سجل للمولد' });
+      return false;
+    }
+    commit({ ...data, logs: data.logs.filter(x => x.id !== id) }, 'تم حذف السجل');
+    return true;
+  };
+
+  const restore = async file => {
+    try {
+      await restoreBackup(file, data, next => {
+        setData(next);
+        saveData(next);
+      });
+      setNotice({
+        type: 'success',
+        text: 'تم بدء تنزيل نسخة أمان من البيانات الحالية، وتمت استعادة النسخة الاحتياطية بنجاح',
+      });
+    } catch (e) {
+      setNotice({ type: 'error', text: e.message });
+    }
+  };
+
+  const manualBackup = () =>
+    setNotice(
+      downloadBackup(data)
+        ? { type: 'success', text: 'تم بدء تنزيل النسخة الاحتياطية' }
+        : {
+            type: 'error',
+            text: 'تعذر بدء تنزيل النسخة الاحتياطية، ربما منعه المتصفح. اسمح بالتنزيلات لهذا الموقع ثم أعد المحاولة.',
+          }
+    );
+
+  const wipeAll = () => {
+    try {
+      wipeAllData(data, () => {
+        clearData();
+        setData(structuredClone(EMPTY_DATA));
+      });
+      setNotice({
+        type: 'success',
+        text: 'تم بدء تنزيل نسخة أمان، وتم مسح جميع المولدات والسجلات',
+      });
+      return true;
+    } catch (e) {
+      setNotice({ type: 'error', text: e.message });
+      return false;
+    }
+  };
+
+  const value = useMemo(
+    () => ({
+      data,
+      notice,
+      setNotice,
+      addGenerator,
+      updateGenerator,
+      makeDefault,
+      saveLog,
+      deleteLog,
+      restore,
+      manualBackup,
+      wipeAll,
+    }),
+    [data, notice]
+  );
+
+  return <C.Provider value={value}>{children}</C.Provider>;
+}
