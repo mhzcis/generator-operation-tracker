@@ -217,3 +217,56 @@ describe('النسخ الاحتياطي والاستعادة', () => {
     expect(clear).not.toHaveBeenCalled();
   });
 });
+
+describe('ربط ملف نسخة احتياطية (File System Access API)', () => {
+  const fakeHandle = () => {
+    const writes = [];
+    return {
+      writes,
+      handle: {
+        name: 'my-backup.json',
+        createWritable: async () => ({ write: async t => writes.push(t), close: async () => {} }),
+      },
+    };
+  };
+
+  it('غير مدعوم دون showSaveFilePicker: لا ربط', async () => {
+    const m = await import('./backupService');
+    expect(m.isFileSystemAccessSupported()).toBe(false);
+    expect(await m.linkBackupFile()).toBe(false);
+    expect(m.hasLinkedBackupFile()).toBe(false);
+  });
+
+  it('الربط يحفظ اسم الملف، والكتابة والنسخ التلقائي يحدّثان الملف، وإلغاء الربط يوقفه', async () => {
+    const m = await import('./backupService');
+    const { writes, handle } = fakeHandle();
+    globalThis.window = { showSaveFilePicker: vi.fn(async () => handle) };
+    try {
+      expect(m.isFileSystemAccessSupported()).toBe(true);
+      expect(await m.linkBackupFile()).toBe(true);
+      expect(m.linkedBackupFileName()).toBe('my-backup.json');
+      expect(await m.writeLinkedBackup({ version: '1.0', generators: [gen('a')], logs: [], meta: {} })).toBe(true);
+      expect(JSON.parse(writes[0]).generators[0].id).toBe('a');
+      m.downloadBackup({ version: '1.0', generators: [], logs: [], meta: {} });
+      await new Promise(r => setTimeout(r, 0));
+      expect(writes).toHaveLength(2);
+      m.unlinkBackupFile();
+      expect(m.hasLinkedBackupFile()).toBe(false);
+      expect(await m.writeLinkedBackup({ meta: {} })).toBe(false);
+    } finally {
+      m.unlinkBackupFile();
+      delete globalThis.window;
+    }
+  });
+
+  it('إلغاء المستخدم لنافذة اختيار الملف لا يربط شيئًا', async () => {
+    const m = await import('./backupService');
+    globalThis.window = { showSaveFilePicker: async () => { throw new Error('AbortError'); } };
+    try {
+      expect(await m.linkBackupFile()).toBe(false);
+      expect(m.hasLinkedBackupFile()).toBe(false);
+    } finally {
+      delete globalThis.window;
+    }
+  });
+});

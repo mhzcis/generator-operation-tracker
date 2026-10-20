@@ -22,6 +22,8 @@ import {
   DeleteForeverRounded,
   ElectricalServicesRounded,
   LightModeRounded,
+  LinkOffRounded,
+  LinkRounded,
   ListAltRounded,
   MenuRounded,
 } from '@mui/icons-material';
@@ -39,7 +41,7 @@ export default function AppShell({ mode, setMode }) {
   const mobile = useMediaQuery('(max-width:900px)');
   const [open, setOpen] = useState(false);
   const [wipe, setWipe] = useState(false);
-  const { manualBackup } = useApp();
+  const { manualBackup, fileLinkSupported, linkedFile, linkBackup, unlinkBackup } = useApp();
 
   const menu = (
     <Box sx={{ p: 2.25, display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
@@ -106,6 +108,28 @@ export default function AppShell({ mode, setMode }) {
       >
         مسح شامل
       </Button>
+
+      {/* ربط ملف نسخة احتياطية يُحدَّث تلقائيًا (File System Access API) مع بقاء التنزيل التلقائي */}
+      <Box sx={{ mt: 1.5, textAlign: 'right' }}>
+        {!fileLinkSupported ? (
+          <Typography variant="body2" component="div" color="text.secondary" sx={{ fontSize: '0.75rem', lineHeight: 1.6 }}>
+            ربط ملف نسخة احتياطية يُحدَّث تلقائيًا غير مدعوم في هذا المتصفح (متاح في Chrome وEdge على الحاسوب). تستمر النسخ الاحتياطية بالتنزيل تلقائيًا.
+          </Typography>
+        ) : linkedFile ? (
+          <>
+            <Typography variant="body2" component="div" color="text.secondary" sx={{ fontSize: '0.75rem', lineHeight: 1.6 }}>
+              الملف المرتبط: <b>{linkedFile}</b> — يُحدَّث تلقائيًا بعد كل تعديل خلال هذه الجلسة.
+            </Typography>
+            <Button fullWidth size="small" startIcon={<LinkOffRounded />} onClick={unlinkBackup} sx={{ mt: 0.5 }}>
+              إلغاء ربط الملف
+            </Button>
+          </>
+        ) : (
+          <Button fullWidth size="small" startIcon={<LinkRounded />} onClick={linkBackup}>
+            ربط ملف نسخة احتياطية
+          </Button>
+        )}
+      </Box>
 
       <Box
         sx={{

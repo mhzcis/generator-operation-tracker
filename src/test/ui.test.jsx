@@ -4,13 +4,14 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material';
 import { AppProvider, useApp } from '../context/AppContext';
 import { makeTheme } from '../theme';
-import OperationLogs from '../pages/OperationLogs';
+import OperationLogs, { paginationAriaLabel } from '../pages/OperationLogs';
 import Generators from '../pages/Generators';
 import AppShell from '../components/AppShell';
 import { gen, log, memoryStorage } from './fixtures';
 
 const seed = data => {
   globalThis.localStorage = memoryStorage();
+  if (data === null) return;
   localStorage.setItem(
     'generator-tracker-v1',
     JSON.stringify({ version: '1.0', meta: {}, ...data })
@@ -178,5 +179,74 @@ describe('القائمة الجانبية وترتيب النموذج', () => {
     const credit = html.slice(wipeAt).replace(/<style[^>]*>.*?<\/style>/g, '');
     expect(credit).toMatch(/<div[^>]*>برمجة وتطوير:<\/div><div[^>]*>م\. محمد أبو زهري<\/div>/);
     expect(credit).toContain('♥️');
+  });
+});
+
+describe('الإصلاحات: الترقيم العربي، ربط ملف النسخة، البيانات التالفة', () => {
+  const shell = () =>
+    renderToString(
+      <ThemeProvider theme={makeTheme('light')}>
+        <AppProvider>
+          <MemoryRouter>
+            <Routes>
+              <Route element={<AppShell mode="light" setMode={() => {}} />}>
+                <Route index element={null} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </AppProvider>
+      </ThemeProvider>
+    );
+
+  it('أزرار الترقيم بتسميات وتلميحات عربية', () => {
+    const logs = Array.from({ length: 30 }, (_, i) => {
+      const d = new Date(2026, 8, 1 + i);
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      return log(`l${i}`, 'a', iso, { previousReading: i, currentReading: i + 1, operatingHours: 1 });
+    });
+    seed({ generators: [gen('a', { isDefault: true })], logs });
+    const html = renderAt('/logs');
+    expect(html).toContain('aria-label="الصفحة التالية"');
+    expect(html).toContain('title="الصفحة السابقة"');
+    expect(html).toContain('عدد السجلات في الصفحة:');
+    expect(html).toContain('1–25 من 30');
+    expect(html).not.toContain('Go to next page');
+    expect(['first', 'last', 'next', 'previous'].map(paginationAriaLabel)).toEqual([
+      'الصفحة الأولى',
+      'الصفحة الأخيرة',
+      'الصفحة التالية',
+      'الصفحة السابقة',
+    ]);
+  });
+
+  it('المتصفح غير الداعم: تظهر رسالة توضيحية بدل زر ربط الملف', () => {
+    seed(data());
+    const html = shell();
+    expect(html).toContain('غير مدعوم في هذا المتصفح');
+    expect(html).not.toContain('ربط ملف نسخة احتياطية</button>');
+  });
+
+  it('المتصفح الداعم: يظهر زر «ربط ملف نسخة احتياطية» بعد زري النسخة والمسح', () => {
+    seed(data());
+    globalThis.window = { showSaveFilePicker: async () => null };
+    try {
+      const html = shell();
+      const linkAt = html.indexOf('ربط ملف نسخة احتياطية</button>');
+      expect(linkAt).toBeGreaterThan(html.indexOf('مسح شامل</button>'));
+    } finally {
+      delete globalThis.window;
+    }
+  });
+
+  it('بيانات تالفة: السياق يعرض حالة التلف ولا يقرأها كبيانات، والقيمة الأصلية باقية', () => {
+    seed(null);
+    localStorage.setItem('generator-tracker-v1', '{broken');
+    const api = grabApp();
+    expect(api.corrupt.raw).toBe('{broken');
+    expect(api.corrupt.key).toMatch(/^generator-tracker-v1-corrupt-2026-10-19-12-00-00$/);
+    expect(api.data.generators).toEqual([]);
+    expect(localStorage.getItem('generator-tracker-v1')).toBe('{broken');
+    expect(typeof api.startFresh).toBe('function');
+    expect(typeof api.downloadCorrupt).toBe('function');
   });
 });

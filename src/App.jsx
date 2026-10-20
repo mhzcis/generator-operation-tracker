@@ -4,7 +4,7 @@ import { CssBaseline, ThemeProvider } from '@mui/material';
 import { AppProvider } from './context/AppContext';
 import { makeTheme } from './theme';
 import AppShell from './components/AppShell';
-import { ErrorBoundary, Notices } from './components/Common';
+import { CorruptDataDialog, ErrorBoundary, Notices } from './components/Common';
 import Dashboard from './pages/Dashboard';
 import Generators from './pages/Generators';
 import OperationLogs from './pages/OperationLogs';
@@ -42,6 +42,7 @@ export default function App() {
               </Route>
             </Routes>
           </HashRouter>
+          <CorruptDataDialog />
           <Notices />
         </AppProvider>
       </ErrorBoundary>

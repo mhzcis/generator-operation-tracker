@@ -146,6 +146,10 @@ describe('التقارير وExcel وPDF وCSV والأمان', () => {
     const html = buildPrintableReportHTML(filtered, columns, { filtersText: fText });
     expect(html).toContain('Tajawal');
     expect(html).toContain('Cairo');
+    // خط Tajawal مستضاف ذاتيًا (لا CDN) ليعمل دون اتصال
+    expect(html).toContain("@font-face{font-family:'Tajawal'");
+    expect(html).toMatch(/tajawal-arabic-400-normal[^)]*\.woff2/);
+    expect(html).not.toContain('fonts.googleapis.com');
     expect(html).toContain(fText);
     expect(html).toContain('1490.5 ساعة');
     expect(html).toContain('مولد الورشة');

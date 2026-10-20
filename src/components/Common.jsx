@@ -14,7 +14,7 @@ import {
   Typography,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import { Component, useEffect, useState } from 'react';
+import { Component, useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { isWipeConfirmed, WIPE_CONFIRM_WORD } from '../services/backupService';
 
@@ -128,7 +128,13 @@ export function Confirm({ open, title, text, onYes, onClose }) {
 export function Notices() {
   const { notice, setNotice } = useApp();
   return (
-    <Snackbar open={!!notice} autoHideDuration={4000} onClose={() => setNotice(null)}>
+    <Snackbar
+      key={notice?.text}
+      open={!!notice}
+      autoHideDuration={4000}
+      // تجاهل النقر خارج الرسالة حتى لا تُغلق الرسالة الجديدة الناتجة عن النقر نفسه
+      onClose={(_, reason) => reason !== 'clickaway' && setNotice(null)}
+    >
       <Alert severity={notice?.type || 'info'} variant="filled">
         {notice?.text}
       </Alert>
@@ -176,6 +182,54 @@ export function WipeDialog({ open, onClose }) {
           }}
         >
           مسح نهائي
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+// تنبيه البيانات التالفة: لا تُحذف البيانات ولا يُكتب فوقها حتى يختار المستخدم أحد الخيارات.
+export function CorruptDataDialog() {
+  const { corrupt, downloadCorrupt, startFresh, restore } = useApp();
+  const file = useRef(null);
+  if (!corrupt) return null;
+  return (
+    <Dialog open disableEscapeKeyDown fullWidth maxWidth="sm" aria-labelledby="corrupt-title">
+      <DialogTitle id="corrupt-title" color="warning.main">
+        تعذّرت قراءة البيانات المحفوظة
+      </DialogTitle>
+      <DialogContent>
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          البيانات المحفوظة في هذا المتصفح تالفة أو بصيغة غير معروفة، ولم يتم حذفها أو الكتابة فوقها.
+        </Alert>
+        <Typography mb={1}>
+          {corrupt.key
+            ? `حُفظت نسخة منها كما هي داخل المتصفح باسم «${corrupt.key}».`
+            : 'تعذر حفظ نسخة منها داخل المتصفح، لذا يُنصح بتنزيلها قبل المتابعة.'}
+        </Typography>
+        <Typography color="text.secondary">
+          اختر طريقة المتابعة: تنزيل البيانات التالفة لمراجعتها، أو الاستعادة من نسخة احتياطية، أو البدء من جديد.
+        </Typography>
+        <input
+          hidden
+          type="file"
+          accept="application/json"
+          ref={file}
+          data-testid="corrupt-restore-input"
+          onChange={e => {
+            const f = e.target.files?.[0];
+            e.target.value = '';
+            if (f) restore(f);
+          }}
+        />
+      </DialogContent>
+      <DialogActions sx={{ flexWrap: 'wrap', gap: 1 }}>
+        <Button onClick={downloadCorrupt}>تنزيل البيانات التالفة</Button>
+        <Button variant="outlined" onClick={() => file.current?.click()}>
+          استعادة من نسخة احتياطية
+        </Button>
+        <Button color="warning" variant="contained" onClick={startFresh}>
+          البدء من جديد
         </Button>
       </DialogActions>
     </Dialog>

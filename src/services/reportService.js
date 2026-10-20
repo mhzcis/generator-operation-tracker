@@ -1,6 +1,7 @@
 import { niceDate, stamp } from '../utils/dates';
 import { RECORD_TYPES } from '../data/defaultData';
 import { roundHours, sortLogs } from '../utils/calculations';
+import { attachTajawalFonts, tajawalFontFaceCss } from '../fonts';
 
 const labels = {
   date: 'التاريخ',
@@ -294,7 +295,7 @@ export function buildExcelWorkbook(
 export function buildPrintableReportHTML(
   data,
   columns,
-  { filtersText = '', createdAt = new Date(), title = 'تقرير تشغيل المولدات' } = {}
+  { filtersText = '', createdAt = new Date(), title = 'تقرير تشغيل المولدات', embedFonts = true } = {}
 ) {
   const activeCols = Array.isArray(columns) && columns.length ? columns : Object.keys(labels);
   const summary = summarizeReportData(data);
@@ -357,10 +358,8 @@ export function buildPrintableReportHTML(
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${safeTitle}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet" />
   <style>
+    ${embedFonts ? tajawalFontFaceCss() : ''}
     @page {
       size: A4 ${orientation};
       margin: 12mm;
@@ -709,17 +708,26 @@ export function exportPDF(
   filtersText = '',
   openWin = () => window.open('', '_blank', 'width=1100,height=800')
 ) {
-  const html = buildPrintableReportHTML(data, columns, { filtersText, title });
   const win = openWin();
+  // في نافذة الطباعة تُضاف ملفات الخط برمجيًا (تعمل دون اتصال)، فلا حاجة لقواعد @font-face التي تُحمَّل من الشبكة.
+  const html = buildPrintableReportHTML(data, columns, { filtersText, title, embedFonts: !win?.FontFace });
   if (win && win.document) {
     win.document.write(html);
     win.document.close();
-    setTimeout(() => {
-      try {
-        win.focus?.();
-        win.print?.();
-      } catch {}
-    }, 300);
+    // انتظار تحميل خط Tajawal المحلي (بحد أقصى 1.5 ثانية) قبل فتح نافذة الطباعة.
+    Promise.race([
+      attachTajawalFonts(win).then(() => win.document.fonts?.ready),
+      new Promise(r => setTimeout(r, 1500)),
+    ])
+      .catch(() => {})
+      .then(() =>
+        setTimeout(() => {
+          try {
+            win.focus?.();
+            win.print?.();
+          } catch {}
+        }, 300)
+      );
     return true;
   }
 
@@ -742,6 +750,7 @@ export function exportPDF(
     doc.open();
     doc.write(html);
     doc.close();
+    attachTajawalFonts(iframe.contentWindow).catch(() => {});
     setTimeout(() => {
       try {
         iframe.contentWindow?.focus();

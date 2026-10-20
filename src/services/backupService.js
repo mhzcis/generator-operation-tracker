@@ -12,6 +12,8 @@ export const isFileSystemAccessSupported = () =>
 
 export const hasLinkedBackupFile = () => !!linkedFileHandle;
 
+export const linkedBackupFileName = () => linkedFileHandle?.name || null;
+
 export const unlinkBackupFile = () => {
   linkedFileHandle = null;
 };
@@ -69,6 +71,10 @@ const download = (text, name, type = 'application/json') => {
     return false;
   }
 };
+
+// تنزيل القيمة الخام للبيانات التالفة كما هي (نص) لمراجعتها أو إصلاحها يدويًا.
+export const downloadCorruptRaw = raw =>
+  download(String(raw ?? ''), `generator-data-corrupt-${stamp()}.txt`, 'text/plain;charset=utf-8');
 
 export const downloadBackup = data => {
   const payload = JSON.stringify(

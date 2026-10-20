@@ -53,6 +53,15 @@ const init = {
   hours: '',
 };
 
+// تسميات عربية لأزرار التنقل بين الصفحات (aria-label والتلميح).
+export const paginationAriaLabel = type =>
+  ({
+    first: 'الصفحة الأولى',
+    last: 'الصفحة الأخيرة',
+    next: 'الصفحة التالية',
+    previous: 'الصفحة السابقة',
+  })[type] || type;
+
 export default function OperationLogs() {
   const { data, deleteLog, restore } = useApp();
   const [params, setParams] = useSearchParams();
@@ -399,6 +408,7 @@ export default function OperationLogs() {
             rowsPerPageOptions={[10, 25, 50, 100]}
             labelRowsPerPage="عدد السجلات في الصفحة:"
             labelDisplayedRows={({ from, to, count }) => `${from}–${to} من ${count}`}
+            getItemAriaLabel={paginationAriaLabel}
           />
         )}
       </TableContainer>

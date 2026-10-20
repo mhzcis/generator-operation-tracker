@@ -1,8 +1,18 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { v4 as uuid } from 'uuid';
-import { clearData, loadData, saveData } from '../services/storageService';
+import { clearData, loadState, saveData } from '../services/storageService';
 import { EMPTY_DATA } from '../data/defaultData';
-import { downloadBackup, restoreBackup, wipeAllData } from '../services/backupService';
+import {
+  downloadBackup,
+  downloadCorruptRaw,
+  isFileSystemAccessSupported,
+  linkBackupFile,
+  linkedBackupFileName,
+  restoreBackup,
+  unlinkBackupFile,
+  wipeAllData,
+  writeLinkedBackup,
+} from '../services/backupService';
 import { dayName, isoNow } from '../utils/dates';
 import { generatorLogs, latestLog, previousLog, roundHours } from '../utils/calculations';
 import { normalizeDefaultGenerator, setDefaultGenerator } from '../utils/generators';
@@ -12,12 +22,21 @@ const C = createContext();
 export const useApp = () => useContext(C);
 
 export function AppProvider({ children }) {
-  const [data, setData] = useState(loadData);
+  const [initial] = useState(loadState);
+  const [data, setData] = useState(initial.data);
+  const [corrupt, setCorrupt] = useState(initial.corrupt);
   const [notice, setNotice] = useState(null);
+  const [linkedFile, setLinkedFile] = useState(null);
+  const fileLinkSupported = isFileSystemAccessSupported();
+
+  const SAVE_FAILED =
+    'تعذر حفظ البيانات في ذاكرة المتصفح (قد تكون مساحة التخزين ممتلئة أو التخزين معطّلًا). لن تبقى التعديلات الأخيرة بعد إغلاق الصفحة، فنزّل نسخة احتياطية الآن.';
 
   useEffect(() => {
-    saveData(data);
-  }, [data]);
+    // عند اكتشاف بيانات تالفة لا نكتب فوقها حتى يختار المستخدم طريقة المتابعة.
+    if (corrupt) return;
+    if (!saveData(data)) setNotice({ type: 'error', text: SAVE_FAILED });
+  }, [data, corrupt]);
 
   const BACKUP_FAILED =
     'تعذر بدء تنزيل النسخة الاحتياطية تلقائيًا، ربما منعه المتصفح. استخدم زر «نسخة احتياطية» لتنزيلها يدويًا.';
@@ -148,6 +167,7 @@ export function AppProvider({ children }) {
         setData(next);
         saveData(next);
       });
+      setCorrupt(null);
       setNotice({
         type: 'success',
         text: 'تم بدء تنزيل نسخة أمان من البيانات الحالية، وتمت استعادة النسخة الاحتياطية بنجاح',
@@ -184,6 +204,52 @@ export function AppProvider({ children }) {
     }
   };
 
+  const downloadCorrupt = () =>
+    setNotice(
+      corrupt && downloadCorruptRaw(corrupt.raw)
+        ? { type: 'success', text: 'تم بدء تنزيل البيانات التالفة كما هي' }
+        : { type: 'error', text: 'تعذر بدء تنزيل البيانات التالفة، ربما منعه المتصفح.' }
+    );
+
+  const startFresh = () => {
+    const kept = corrupt?.key;
+    setData(structuredClone(EMPTY_DATA));
+    setCorrupt(null);
+    setNotice({
+      type: 'info',
+      text: kept
+        ? `تم البدء ببيانات جديدة. ما زالت البيانات التالفة محفوظة في المتصفح باسم «${kept}».`
+        : 'تم البدء ببيانات جديدة.',
+    });
+  };
+
+  const linkBackup = async () => {
+    if (!fileLinkSupported) return false;
+    if (!(await linkBackupFile())) {
+      setNotice({ type: 'info', text: 'لم يتم ربط أي ملف.' });
+      return false;
+    }
+    if (!(await writeLinkedBackup(data))) {
+      unlinkBackupFile();
+      setLinkedFile(null);
+      setNotice({ type: 'error', text: 'تعذرت الكتابة في الملف المختار، لذلك لم يتم ربطه.' });
+      return false;
+    }
+    const name = linkedBackupFileName() || 'ملف النسخة الاحتياطية';
+    setLinkedFile(name);
+    setNotice({
+      type: 'success',
+      text: `تم ربط الملف «${name}» وحفظ البيانات فيه. سيُحدَّث تلقائيًا بعد كل تعديل خلال هذه الجلسة، مع استمرار التنزيل التلقائي.`,
+    });
+    return true;
+  };
+
+  const unlinkBackup = () => {
+    unlinkBackupFile();
+    setLinkedFile(null);
+    setNotice({ type: 'info', text: 'تم إلغاء ربط ملف النسخة الاحتياطية. يستمر التنزيل التلقائي كالمعتاد.' });
+  };
+
   const value = useMemo(
     () => ({
       data,
@@ -197,8 +263,15 @@ export function AppProvider({ children }) {
       restore,
       manualBackup,
       wipeAll,
+      corrupt,
+      downloadCorrupt,
+      startFresh,
+      fileLinkSupported,
+      linkedFile,
+      linkBackup,
+      unlinkBackup,
     }),
-    [data, notice]
+    [data, notice, corrupt, linkedFile]
   );
 
   return <C.Provider value={value}>{children}</C.Provider>;
