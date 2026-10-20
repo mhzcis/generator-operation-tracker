@@ -8,6 +8,9 @@ import {
   DialogTitle,
   FormControlLabel,
   FormGroup,
+  FormLabel,
+  Radio,
+  RadioGroup,
   Stack,
 } from '@mui/material';
 import { FileDownloadRounded, PictureAsPdfRounded, PrintRounded } from '@mui/icons-material';
@@ -17,6 +20,8 @@ import {
   exportCSV,
   exportExcel,
   exportPDF,
+  orderReportData,
+  REPORT_ORDERS,
   reportLabels,
 } from '../services/reportService';
 
@@ -35,8 +40,12 @@ const defaults = [
 export default function ReportActions({ logs, generators, filtersText }) {
   const [open, setOpen] = useState(false);
   const [cols, setCols] = useState(defaults);
+  const [order, setOrder] = useState('newest');
   const { setNotice } = useApp() || {};
-  const data = useMemo(() => enrich(logs, generators), [logs, generators]);
+  const data = useMemo(
+    () => orderReportData(enrich(logs, generators), order),
+    [logs, generators, order]
+  );
 
   const toggle = c => setCols(x => (x.includes(c) ? x.filter(y => y !== c) : [...x, c]));
 
@@ -72,6 +81,20 @@ export default function ReportActions({ logs, generators, filtersText }) {
               />
             ))}
           </FormGroup>
+          <FormLabel id="report-order-label" sx={{ mt: 2, display: 'block', fontWeight: 700 }}>
+            ترتيب السجلات
+          </FormLabel>
+          <RadioGroup
+            row
+            aria-labelledby="report-order-label"
+            name="report-order"
+            value={order}
+            onChange={e => setOrder(e.target.value)}
+          >
+            {Object.entries(REPORT_ORDERS).map(([k, v]) => (
+              <FormControlLabel key={k} value={k} control={<Radio />} label={v} />
+            ))}
+          </RadioGroup>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => exportCSV(data, cols, 'تقرير-التشغيل')} disabled={!cols.length}>

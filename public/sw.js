@@ -2,7 +2,7 @@
    - index.html (التنقل): الشبكة أولًا ثم النسخة المخزنة عند انقطاع الاتصال.
    - الأصول المبنية (assets/ ذات الأسماء المجزأة) والأيقونات: من الذاكرة المؤقتة أولًا.
    - النطاق: مجلد هذا الملف (./) فيعمل تحت /generator-operation-tracker/. */
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = `generator-tracker-${VERSION}`;
 const SCOPE = new URL('./', self.location).href;
 const INDEX = new URL('./index.html', SCOPE).href;

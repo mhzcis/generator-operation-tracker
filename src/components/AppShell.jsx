@@ -109,7 +109,7 @@ export default function AppShell({ mode, setMode }) {
         مسح شامل
       </Button>
 
-      {/* ربط ملف نسخة احتياطية يُحدَّث تلقائيًا (File System Access API) مع بقاء التنزيل التلقائي */}
+      {/* ربط ملف نسخة احتياطية يُحدَّث تلقائيًا (File System Access API)؛ يوقف التنزيلات التلقائية أثناء الربط */}
       <Box sx={{ mt: 1.5, textAlign: 'right' }}>
         {!fileLinkSupported ? (
           <Typography variant="body2" component="div" color="text.secondary" sx={{ fontSize: '0.75rem', lineHeight: 1.6 }}>
@@ -118,7 +118,7 @@ export default function AppShell({ mode, setMode }) {
         ) : linkedFile ? (
           <>
             <Typography variant="body2" component="div" color="text.secondary" sx={{ fontSize: '0.75rem', lineHeight: 1.6 }}>
-              الملف المرتبط: <b>{linkedFile}</b> — يُحدَّث تلقائيًا بعد كل تعديل خلال هذه الجلسة.
+              الملف المرتبط: <b>{linkedFile}</b> — يُحدَّث تلقائيًا بعد كل تعديل خلال هذه الجلسة بدل تنزيل ملفات منفصلة.
             </Typography>
             <Button fullWidth size="small" startIcon={<LinkOffRounded />} onClick={unlinkBackup} sx={{ mt: 0.5 }}>
               إلغاء ربط الملف
@@ -142,6 +142,7 @@ export default function AppShell({ mode, setMode }) {
         <Box
           sx={{
             p: 1.75,
+            textAlign: 'center',
             borderRadius: 3.5,
             background: theme =>
               theme.palette.mode === 'dark'
@@ -177,12 +178,13 @@ export default function AppShell({ mode, setMode }) {
               borderColor: 'divider',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
+              justifyContent: 'center',
+              gap: '0.6em',
               fontSize: '0.74rem',
               fontWeight: 600,
             }}
           >
-            <span>صُنع بكل حب وإتقان</span>
+            <span>صُنع بكل حب</span>
             <Box component="span" sx={{ color: '#e11d48', fontSize: '0.95rem', lineHeight: 1 }}>
               ♥️
             </Box>

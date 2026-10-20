@@ -53,6 +53,20 @@ const init = {
   hours: '',
 };
 
+// شارة حالة السجل بنمط موحّد: «أصلي» بلون أخضر مزرق هادئ و«معدّل» بلون كهرماني، بتباين جيد في الوضعين.
+const statusChipSx = kind => theme => {
+  const dark = theme.palette.mode === 'dark';
+  const c =
+    kind === 'edited'
+      ? dark
+        ? { bg: 'rgba(245, 158, 11, 0.18)', fg: '#fcd34d', bd: 'rgba(245, 158, 11, 0.45)' }
+        : { bg: '#fef3c7', fg: '#92400e', bd: '#fcd34d' }
+      : dark
+        ? { bg: 'rgba(20, 184, 166, 0.16)', fg: '#5eead4', bd: 'rgba(20, 184, 166, 0.4)' }
+        : { bg: '#ccfbf1', fg: '#115e59', bd: '#5eead4' };
+  return { bgcolor: c.bg, color: c.fg, border: '1px solid', borderColor: c.bd, fontWeight: 700 };
+};
+
 // تسميات عربية لأزرار التنقل بين الصفحات (aria-label والتلميح).
 export const paginationAriaLabel = type =>
   ({
@@ -69,7 +83,7 @@ export default function OperationLogs() {
     params.get('new') === '1' ? params.get('generator') : null
   );
   const [formOpen, setFormOpen] = useState(!!preset);
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [edit, setEdit] = useState(null);
   const [filters, setFilters] = useState({
     ...init,
@@ -360,10 +374,10 @@ export default function OperationLogs() {
                   <TableCell>
                     {x.edited ? (
                       <Tooltip title={new Date(x.updatedAt).toLocaleString('ar')}>
-                        <Chip size="small" label="معدّل" />
+                        <Chip size="small" label="معدّل" sx={statusChipSx('edited')} />
                       </Tooltip>
                     ) : (
-                      'أصلي'
+                      <Chip size="small" label="أصلي" sx={statusChipSx('original')} />
                     )}
                   </TableCell>
                   <TableCell>

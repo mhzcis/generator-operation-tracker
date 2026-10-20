@@ -53,6 +53,13 @@ export const enrich = (logs, generators) => {
   });
 };
 
+// ترتيب سجلات التقرير: 'newest' (الأحدث أولًا، الافتراضي) أو 'oldest' (الأقدم أولًا).
+export const REPORT_ORDERS = { newest: 'الأحدث أولًا', oldest: 'الأقدم أولًا' };
+export const orderReportData = (data, order = 'newest') => {
+  const sorted = sortLogs(data || []);
+  return order === 'oldest' ? sorted.reverse() : sorted;
+};
+
 // حساب ملخص إحصائي فوري للبيانات المفلترة في تمريرة واحدة عالية الكفاءة O(N)
 export const summarizeReportData = data => {
   const generatorKeys = new Set();
@@ -349,7 +356,8 @@ export function buildPrintableReportHTML(
         return `<td></td>`;
       })
       .join('');
-    footerHtml = `<tfoot><tr>${footerCells}</tr></tfoot>`;
+    // صف الإجمالي كجسم أخير للجدول (وليس tfoot) حتى يظهر مرة واحدة في نهاية التقرير فقط، لا في أسفل كل صفحة مطبوعة.
+    footerHtml = `<tbody class="total-body"><tr class="total-row">${footerCells}</tr></tbody>`;
   }
 
   return `<!doctype html>
@@ -506,9 +514,6 @@ export function buildPrintableReportHTML(
     thead {
       display: table-header-group;
     }
-    tfoot {
-      display: table-footer-group;
-    }
     tr {
       page-break-inside: avoid;
     }
@@ -567,7 +572,7 @@ export function buildPrintableReportHTML(
       color: #92400e;
       border: 1px solid #fcd34d;
     }
-    tfoot td {
+    .total-row td {
       background: #ecfdf5 !important;
       font-weight: 800;
       border-top: 2px solid #0f766e;
@@ -596,10 +601,65 @@ export function buildPrintableReportHTML(
       font-size: 11.5px;
       color: #64748b;
     }
+    .table-wrap {
+      width: 100%;
+    }
+    /* معاينة متجاوبة على الشاشات الصغيرة (الجوال): ملاءمة عرض الشاشة والتفاف البطاقات وتمرير الجدول أفقيًا داخل حاويته */
+    @media screen and (max-width: 760px) {
+      body {
+        padding: 10px;
+      }
+      .toolbar {
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 10px 12px;
+      }
+      .report-sheet {
+        padding: 12px;
+        border-radius: 12px;
+      }
+      .header-banner {
+        padding: 16px;
+      }
+      .header-banner h1 {
+        font-size: 20px;
+      }
+      .header-meta {
+        text-align: right;
+      }
+      .kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .kpi-card {
+        padding: 10px 12px;
+      }
+      .kpi-value {
+        font-size: 17px;
+      }
+      .table-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin-top: 14px;
+        border-radius: 10px;
+      }
+      .table-wrap table {
+        margin-top: 0;
+        min-width: 640px;
+      }
+      .report-footer {
+        flex-direction: column;
+        gap: 6px;
+        text-align: center;
+      }
+    }
     @media print {
       body {
         background: #ffffff;
         padding: 0;
+      }
+      .table-wrap {
+        overflow: visible !important;
       }
       .no-print {
         display: none !important;
@@ -656,6 +716,7 @@ export function buildPrintableReportHTML(
       <strong>الفلاتر المطبقة:</strong> ${safeFilters}
     </div>
 
+    <div class="table-wrap">
     <table>
       <thead>
         <tr>${headersHtml}</tr>
@@ -665,6 +726,7 @@ export function buildPrintableReportHTML(
       </tbody>
       ${footerHtml}
     </table>
+    </div>
 
     <div class="report-footer">
       <div>مستخرج آليًا من نظام متابعة تشغيل المولدات (بيانات مطابقة للفلاتر المطبقة)</div>
@@ -706,7 +768,13 @@ export function exportPDF(
   columns,
   title = 'تقرير تشغيل المولدات',
   filtersText = '',
-  openWin = () => window.open('', '_blank', 'width=1100,height=800')
+  // على الشاشات الصغيرة/اللمسية تُفتح المعاينة كتبويب كامل بعرض الجهاز بدل نافذة بعرض ثابت 1100px.
+  openWin = () =>
+    window.open(
+      '',
+      '_blank',
+      window.matchMedia?.('(max-width: 900px), (pointer: coarse)').matches ? '' : 'width=1100,height=800'
+    )
 ) {
   const win = openWin();
   // في نافذة الطباعة تُضاف ملفات الخط برمجيًا (تعمل دون اتصال)، فلا حاجة لقواعد @font-face التي تُحمَّل من الشبكة.

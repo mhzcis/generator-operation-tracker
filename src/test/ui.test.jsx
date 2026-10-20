@@ -250,3 +250,73 @@ describe('الإصلاحات: الترقيم العربي، ربط ملف الن
     expect(typeof api.downloadCorrupt).toBe('function');
   });
 });
+
+describe('التعديلات الثالثة: الحالة، الفلاتر، الترتيب، الملف المرتبط', () => {
+  it('حالة السجل «أصلي» و«معدّل» تظهران كشارتين بالنمط نفسه', () => {
+    seed({
+      generators: [gen('a', { isDefault: true })],
+      logs: [
+        log('1', 'a', '2026-10-15', { currentReading: 5, operatingHours: 5 }),
+        log('2', 'a', '2026-10-16', { previousReading: 5, currentReading: 9, operatingHours: 4, edited: true }),
+      ],
+    });
+    const html = renderAt('/logs');
+    expect(html).toMatch(/MuiChip-root[^>]*>(<[^>]+>)*<span class="MuiChip-label[^"]*">أصلي<\/span>/);
+    expect(html).toMatch(/MuiChip-root[^>]*>(<[^>]+>)*<span class="MuiChip-label[^"]*">معدّل<\/span>/);
+    expect(html).not.toMatch(/<td[^>]*>أصلي<\/td>/);
+  });
+
+  it('لوحة الفلاتر مخفية افتراضيًا عند فتح صفحة السجلات، وزر الإظهار موجود', () => {
+    seed(data());
+    const html = renderAt('/logs');
+    expect(html).toContain('إظهار الفلاتر');
+    expect(html).not.toContain('إخفاء الفلاتر');
+    const clean = html.replace(/<style[^>]*>.*?<\/style>/g, '');
+    const searchAt = clean.indexOf('بحث شامل');
+    const roots = clean.slice(0, searchAt).match(/class="MuiCollapse-root[^"]*"/g);
+    expect(roots.at(-1)).toContain('MuiCollapse-hidden');
+  });
+
+  it('أثناء ربط ملف: يُحدَّث الملف بدل تنزيل ملف منفصل، وتعود التنزيلات بعد إلغاء الربط أو فشل الكتابة', async () => {
+    const bs = await import('../services/backupService');
+    const writes = [];
+    let fail = false;
+    globalThis.window = {
+      showSaveFilePicker: async () => ({
+        name: 'linked.json',
+        createWritable: async () => {
+          if (fail) throw new Error('lost');
+          return { write: async t => writes.push(t), close: async () => {} };
+        },
+      }),
+    };
+    const created = vi.fn(() => 'blob:x');
+    const origCreate = URL.createObjectURL;
+    URL.createObjectURL = created;
+    try {
+      seed(data());
+      await bs.linkBackupFile();
+      let api = grabApp();
+      api.addGenerator({ number: 'N1', name: 'جديد', location: 'م', capacity: '', status: 'active' });
+      await vi.runAllTimersAsync();
+      expect(writes).toHaveLength(1);
+      expect(JSON.parse(writes[0]).generators.some(g => g.number === 'N1')).toBe(true);
+      expect(created).not.toHaveBeenCalled();
+      // فشل الكتابة (فقدان الربط): يُلغى الربط ويعود التنزيل
+      fail = true;
+      api = grabApp();
+      api.addGenerator({ number: 'N2', name: 'جديد 2', location: 'م', capacity: '', status: 'active' });
+      await vi.runAllTimersAsync();
+      expect(bs.hasLinkedBackupFile()).toBe(false);
+      expect(created).toHaveBeenCalledTimes(1);
+      // بعد إلغاء الربط: تنزيل تلقائي عادي
+      api = grabApp();
+      api.addGenerator({ number: 'N3', name: 'جديد 3', location: 'م', capacity: '', status: 'active' });
+      expect(created).toHaveBeenCalledTimes(2);
+    } finally {
+      bs.unlinkBackupFile();
+      URL.createObjectURL = origCreate;
+      delete globalThis.window;
+    }
+  });
+});

@@ -5,6 +5,7 @@ import { EMPTY_DATA } from '../data/defaultData';
 import {
   downloadBackup,
   downloadCorruptRaw,
+  hasLinkedBackupFile,
   isFileSystemAccessSupported,
   linkBackupFile,
   linkedBackupFileName,
@@ -43,6 +44,25 @@ export function AppProvider({ children }) {
 
   const commit = (next, msg, backup = true) => {
     setData(next);
+    // أثناء ربط ملف نسخة احتياطية: يُحدَّث الملف المرتبط بدل تنزيل ملف منفصل بعد كل إجراء.
+    // إذا فشلت الكتابة يُلغى الربط وتعود التنزيلات التلقائية فورًا.
+    if (backup && hasLinkedBackupFile()) {
+      const name = linkedBackupFileName() || 'ملف النسخة الاحتياطية';
+      setNotice({ type: 'success', text: `${msg}. تم تحديث ملف النسخة الاحتياطية المرتبط «${name}»` });
+      writeLinkedBackup(next).then(ok => {
+        if (ok) return;
+        unlinkBackupFile();
+        setLinkedFile(null);
+        const started = downloadBackup(next);
+        setNotice({
+          type: 'warning',
+          text: `${msg}. تعذرت الكتابة في الملف المرتبط فأُلغي ربطه وعادت التنزيلات التلقائية. ${
+            started ? 'تم بدء تنزيل النسخة الاحتياطية' : BACKUP_FAILED
+          }`,
+        });
+      });
+      return;
+    }
     const started = backup ? downloadBackup(next) : true;
     setNotice(
       started
@@ -239,7 +259,7 @@ export function AppProvider({ children }) {
     setLinkedFile(name);
     setNotice({
       type: 'success',
-      text: `تم ربط الملف «${name}» وحفظ البيانات فيه. سيُحدَّث تلقائيًا بعد كل تعديل خلال هذه الجلسة، مع استمرار التنزيل التلقائي.`,
+      text: `تم ربط الملف «${name}» وحفظ البيانات فيه. سيُحدَّث تلقائيًا بعد كل تعديل خلال هذه الجلسة بدل تنزيل ملف منفصل.`,
     });
     return true;
   };
@@ -247,7 +267,7 @@ export function AppProvider({ children }) {
   const unlinkBackup = () => {
     unlinkBackupFile();
     setLinkedFile(null);
-    setNotice({ type: 'info', text: 'تم إلغاء ربط ملف النسخة الاحتياطية. يستمر التنزيل التلقائي كالمعتاد.' });
+    setNotice({ type: 'info', text: 'تم إلغاء ربط ملف النسخة الاحتياطية. عادت التنزيلات التلقائية بعد كل تعديل.' });
   };
 
   const value = useMemo(

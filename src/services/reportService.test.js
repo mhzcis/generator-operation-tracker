@@ -4,6 +4,8 @@ import {
   buildCSV,
   buildExcelWorkbook,
   buildPrintableReportHTML,
+  orderReportData,
+  REPORT_ORDERS,
   describeFilters,
   enrich,
   escapeHtml,
@@ -201,5 +203,42 @@ describe('التقارير وExcel وPDF وCSV والأمان', () => {
     expect(escapeHtml('<img src=x onerror=alert(1)>')).toBe(
       '&lt;img src=x onerror=alert(1)&gt;'
     );
+  });
+});
+
+describe('التعديلات الثالثة: ترتيب التقرير وصف الإجمالي', () => {
+  const rows = [
+    { id: '1', date: '2026-10-01', createdAt: '2026-10-01T10:00:00Z', operatingHours: 5, recordType: 'daily' },
+    { id: '3', date: '2026-10-03', createdAt: '2026-10-03T10:00:00Z', operatingHours: 4, recordType: 'daily' },
+    { id: '2', date: '2026-10-02', createdAt: '2026-10-02T10:00:00Z', operatingHours: 3, recordType: 'daily' },
+  ];
+
+  it('الترتيب الافتراضي الأحدث أولًا، ويمكن اختيار الأقدم أولًا، ويطبَّق على CSV والطباعة', () => {
+    expect(orderReportData(rows).map(r => r.id)).toEqual(['3', '2', '1']);
+    expect(orderReportData(rows, 'newest').map(r => r.id)).toEqual(['3', '2', '1']);
+    expect(orderReportData(rows, 'oldest').map(r => r.id)).toEqual(['1', '2', '3']);
+    expect(REPORT_ORDERS).toEqual({ newest: 'الأحدث أولًا', oldest: 'الأقدم أولًا' });
+    const csv = buildCSV(orderReportData(rows, 'oldest'), ['date']);
+    expect(csv.split('\r\n').slice(1)).toEqual(['2026-10-01', '2026-10-02', '2026-10-03']);
+    const html = buildPrintableReportHTML(orderReportData(rows, 'oldest'), ['date', 'operatingHours']);
+    expect(html.indexOf('01/10/2026')).toBeLessThan(html.indexOf('03/10/2026'));
+  });
+
+  it('صف الإجمالي في نهاية الجدول فقط (ليس tfoot المتكرر في كل صفحة) والإجمالي في رأس التقرير', () => {
+    const html = buildPrintableReportHTML(rows, ['date', 'operatingHours']);
+    expect(html).not.toContain('<tfoot');
+    expect(html).not.toMatch(/table-footer-group/);
+    expect(html.match(/class="total-row"/g)).toHaveLength(1);
+    expect(html.indexOf('class="total-row"')).toBeGreaterThan(html.lastIndexOf('<td class="center num">'));
+    expect(html.indexOf('class="total-row"')).toBeLessThan(html.indexOf('</table>'));
+    expect(html).toContain('<div class="kpi-label">إجمالي ساعات التشغيل</div>');
+    expect(html).toContain('12 ساعة');
+  });
+
+  it('معاينة الطباعة متجاوبة على الجوال مع إبقاء تخطيط A4 للطباعة', () => {
+    const html = buildPrintableReportHTML(rows, ['date']);
+    expect(html).toContain('@media screen and (max-width: 760px)');
+    expect(html).toContain('<div class="table-wrap">');
+    expect(html).toMatch(/@page \{\s*size: A4/);
   });
 });
