@@ -1,7 +1,7 @@
 import { stamp, isoNow, dayName, isValidISODate, todayISO } from '../utils/dates';
 import { isValidCoordinate, normalizeNumber } from '../utils/validators';
 import { normalizeDefaultGenerator } from '../utils/generators';
-import { roundHours } from '../utils/calculations';
+import { logHours } from '../utils/calculations';
 
 export const MAX_BACKUP_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -105,7 +105,8 @@ const sanitizeObject = obj => {
 };
 
 // يتحقق من بنية النسخة الاحتياطية ويعيد بيانات مُطبَّعة، أو يرمي خطأ بسبب الرفض دون أي أثر جانبي.
-// سياسة ساعات التشغيل: تُعاد حسابها دائمًا من القراءات (السجل اليومي = الحالية - السابقة، تغيير العداد = صفر).
+// سياسة ساعات التشغيل: تُعاد حسابها دائمًا من القراءات عبر logHours (الحالية - السابقة لكلا النوعين؛
+// وسجل تغيير العداد القديم الذي قراءته الحالية أقل من السابقة يُقبل بصفر ساعة للتوافق مع النسخ القديمة).
 export const validateBackup = (x, today = todayISO()) => {
   if (!x || typeof x !== 'object' || Array.isArray(x)) fail('بنية الملف غير صالحة');
   if (x.version !== '1.0') fail(`إصدار النسخة الاحتياطية «${x.version ?? 'غير محدد'}» غير مدعوم`);
@@ -187,7 +188,7 @@ export const validateBackup = (x, today = todayISO()) => {
       day: dayName(l.date),
       previousReading,
       currentReading,
-      operatingHours: l.recordType === 'meterReset' ? 0 : roundHours(currentReading - previousReading),
+      operatingHours: logHours(l.recordType, previousReading, currentReading),
     };
   });
 

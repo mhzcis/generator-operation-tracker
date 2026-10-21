@@ -7,6 +7,7 @@ import { makeTheme } from '../theme';
 import OperationLogs, { paginationAriaLabel } from '../pages/OperationLogs';
 import Generators from '../pages/Generators';
 import AppShell from '../components/AppShell';
+import LogForm from '../components/LogForm';
 import { gen, log, memoryStorage } from './fixtures';
 
 const seed = data => {
@@ -318,5 +319,40 @@ describe('التعديلات الثالثة: الحالة، الفلاتر، ا�
       URL.createObjectURL = origCreate;
       delete globalThis.window;
     }
+  });
+});
+
+describe('تغيير العداد: حقل القراءة السابقة', () => {
+  const renderForm = edit =>
+    renderToString(
+      <ThemeProvider theme={makeTheme('light')}>
+        <AppProvider>
+          <LogForm open edit={edit} onDone={() => {}} />
+        </AppProvider>
+      </ThemeProvider>
+    );
+  const prevInput = html => {
+    const clean = html.replace(/<style[^>]*>.*?<\/style>/g, '');
+    const at = clean.indexOf('>القراءة السابقة<');
+    return clean.slice(at, clean.indexOf('/>', clean.indexOf('<input', at)));
+  };
+  const logs = [
+    log('1', 'a', '2026-10-15', { previousReading: 100, currentReading: 110, operatingHours: 10 }),
+    log('2', 'a', '2026-10-16', { recordType: 'meterReset', previousReading: 15749, currentReading: 15754, operatingHours: 5 }),
+  ];
+
+  it('تعديل آخر سجل من نوع تغيير عداد: الحقل مفتوح للإدخال ويحمل قراءة بداية العداد الجديد', () => {
+    seed({ generators: [gen('a', { isDefault: true })], logs });
+    const input = prevInput(renderForm(logs[1]));
+    expect(input).toContain('value="15749"');
+    expect(input).not.toContain('disabled');
+    expect(renderForm(logs[1])).toContain('أدخل قراءة بداية العداد الجديد');
+  });
+
+  it('سجل يومي جديد بعد سجلات سابقة: الحقل مقفل ويُجلب من آخر قراءة', () => {
+    seed({ generators: [gen('a', { isDefault: true })], logs });
+    const input = prevInput(renderForm(null));
+    expect(input).toContain('value="15754"');
+    expect(input).toContain('disabled');
   });
 });

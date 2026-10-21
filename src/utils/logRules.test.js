@@ -4,6 +4,7 @@ import {
   GENERATOR_COLORS,
   generatorColor,
   logDateRule,
+  logHours,
   monthlyByGenerator,
   roundHours,
   totalHours,
@@ -140,16 +141,34 @@ describe('القراءات ودقة الحسابات', () => {
     ).toBeTruthy();
   });
 
-  it('يقبل القراءة الأقل في تغيير العداد', () => {
+  it('يرفض في تغيير العداد قراءة حالية أقل من قراءة بداية العداد الجديد', () => {
     expect(
       validateLog(
         form({ recordType: 'meterReset', previousReading: 10, currentReading: 0, date: '2025-01-01' }),
         []
       ).currentReading
-    ).toBeUndefined();
+    ).toBe('القراءة الحالية لا تقل عن قراءة بداية العداد الجديد');
   });
 
-  it('ساعات تغيير العداد صفر، والقراءة الجديدة أساس السجل التالي، ويبقى الإجمالي التاريخي صحيحًا', () => {
+  it('ساعات تغيير العداد = الحالية - بداية العداد الجديد، والسجل القديم (الحالية أقل) بصفر ساعة', () => {
+    expect(logHours('meterReset', 15749, 15754)).toBe(5);
+    expect(logHours('meterReset', 15749, 15749)).toBe(0);
+    expect(logHours('meterReset', 110, 5)).toBe(0);
+    expect(logHours('daily', 100.1, 100.3)).toBe(0.2);
+  });
+
+  it('تغيير العداد بساعات فعلية: يُحتسب في الإجمالي، والسجل التالي يتسلسل من قراءته الحالية، وتعديله يحتفظ بقراءة بداية العداد الجديد', () => {
+    const logs = [
+      log('1', 'a', '2026-10-01', { previousReading: 15867.5, currentReading: 15871.5, operatingHours: 4 }),
+      log('2', 'a', '2026-10-02', { recordType: 'meterReset', previousReading: 15749, currentReading: 15754, operatingHours: 5 }),
+    ];
+    expect(totalHours(logs)).toBe(9);
+    expect(newLogForm([gen('a', { isDefault: true })], logs)).toMatchObject({ previousReading: '15754', date: '2026-10-03' });
+    expect(editLogForm(logs[1], logs).previousReading).toBe(15749);
+    expect(editLogForm({ ...logs[1], recordType: 'daily' }, logs).previousReading).toBe('15871.5');
+  });
+
+  it('توافق قديم: تغيير عداد بقراءة أقل وصفر ساعة، والقراءة الجديدة أساس السجل التالي، ويبقى الإجمالي التاريخي صحيحًا', () => {
     const logs = [
       log('1', 'a', '2026-10-01', { previousReading: 100, currentReading: 110, operatingHours: 10 }),
       log('2', 'a', '2026-10-02', {

@@ -11,9 +11,10 @@ export const newLogForm = (generators, logs, preferredId) => {
  return applyGenerator({ recordType: 'daily', currentReading: '', notes: '' }, logs, generatorId);
 };
 // نموذج تعديل آخر سجل: القراءة السابقة تُجلب من السجل السابق له إن وجد.
+// سجل تغيير العداد يحتفظ بقراءة بداية العداد الجديد كما أُدخلت.
 export const editLogForm = (edit, logs) => {
  const rule = logDateRule(logs, edit.generatorId, edit.id);
- return rule.prev ? { ...edit, previousReading: String(rule.prev.currentReading) } : edit;
+ return rule.prev && edit.recordType !== 'meterReset' ? { ...edit, previousReading: String(rule.prev.currentReading) } : edit;
 };
 // رابط مولد بلا سجلات في لوحة التحكم: يفتح نموذج سجل جديد للمولد النشط، ويبقى الانتقال كما هو للمولد غير النشط لأنه لا يظهر في قائمة الإدخال.
 export const noLogsLink = g => `/logs?generator=${g.id}${g.status === 'active' ? '&new=1' : ''}`;

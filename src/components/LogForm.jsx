@@ -13,13 +13,15 @@ import {
   Typography,
 } from '@mui/material';
 import { useApp } from '../context/AppContext';
-import { logDateRule, roundHours } from '../utils/calculations';
+import { logDateRule, logHours } from '../utils/calculations';
 import { dayName, niceDate } from '../utils/dates';
 import { applyGenerator, editLogForm, newLogForm } from '../utils/logForm';
 
 export default function LogForm({ edit, onDone, open, preset }) {
   const { data, saveLog } = useApp();
-  const [f, setF] = useState(() => newLogForm(data.generators, data.logs, preset));
+  const [f, setF] = useState(() =>
+    edit ? editLogForm(edit, data.logs) : newLogForm(data.generators, data.logs, preset)
+  );
   const [e, setE] = useState({});
 
   useEffect(() => {
@@ -35,16 +37,18 @@ export default function LogForm({ edit, onDone, open, preset }) {
   );
   const blocked = !edit && rule.blocked;
   const first = !rule.prev;
-  const hours =
-    f.recordType === 'meterReset'
-      ? 0
-      : roundHours(Number(f.currentReading || 0) - Number(f.previousReading || 0));
+  const meter = f.recordType === 'meterReset';
+  const hours = logHours(f.recordType, f.previousReading, f.currentReading);
+  // القراءة السابقة قابلة للتحرير لأول سجل ولسجل تغيير العداد (قراءة بداية العداد الجديد).
+  const prevEditable = first || meter;
 
   const change = k => x =>
     setF(
       k === 'generatorId' && !edit
         ? applyGenerator(f, data.logs, x.target.value)
-        : { ...f, [k]: x.target.value }
+        : k === 'recordType' && x.target.value === 'daily' && rule.prev
+          ? { ...f, recordType: 'daily', previousReading: String(rule.prev.currentReading) }
+          : { ...f, [k]: x.target.value }
     );
 
   const submit = () => {
@@ -67,7 +71,7 @@ export default function LogForm({ edit, onDone, open, preset }) {
       </Typography>
       {f.recordType === 'meterReset' && (
         <Alert severity="warning" sx={{ mb: 2 }}>
-          سيتم بدء دورة عداد جديدة مع الاحتفاظ بإجمالي ساعات التشغيل التراكمية للمولد.
+          تغيير عداد: أدخل في «القراءة السابقة» قراءة بداية العداد الجديد. تُحسب ساعات التشغيل من الفرق بين القراءتين وتُضاف إلى إجمالي الساعات، ويبدأ السجل التالي من القراءة الحالية.
         </Alert>
       )}
       {e.general && <Alert severity="error">{e.general}</Alert>}
@@ -127,11 +131,15 @@ export default function LogForm({ edit, onDone, open, preset }) {
           label="القراءة السابقة"
           value={f.previousReading}
           onChange={change('previousReading')}
-          disabled={!first}
+          disabled={!prevEditable}
           error={!!e.previousReading}
           helperText={
             e.previousReading ||
-            (first ? 'أدخل قراءة البداية لأول سجل' : 'تُجلب من آخر قراءة تلقائيًا')
+            (meter
+              ? 'أدخل قراءة بداية العداد الجديد'
+              : first
+                ? 'أدخل قراءة البداية لأول سجل'
+                : 'تُجلب من آخر قراءة تلقائيًا')
           }
         />
 

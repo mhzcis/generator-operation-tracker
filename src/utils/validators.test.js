@@ -26,21 +26,16 @@ describe('التحقق', () => {
       ).currentReading
     ).toBeTruthy());
 
-  it('يسمح بانخفاض تغيير العداد', () =>
-    expect(
+  it('تغيير العداد: القراءة الحالية لا تقل عن قراءة بداية العداد الجديد، والمساواة مقبولة', () => {
+    const m = (previousReading, currentReading) =>
       validateLog(
-        {
-          id: '',
-          generatorId: 'g',
-          date: '2025-01-01',
-          recordType: 'meterReset',
-          previousReading: 10,
-          currentReading: 0,
-          notes: '',
-        },
+        { id: '', generatorId: 'g', date: '2025-01-01', recordType: 'meterReset', previousReading, currentReading, notes: '' },
         []
-      ).currentReading
-    ).toBeUndefined());
+      ).currentReading;
+    expect(m(10, 0)).toBe('القراءة الحالية لا تقل عن قراءة بداية العداد الجديد');
+    expect(m(15749, 15749)).toBeUndefined();
+    expect(m(15749, 15754)).toBeUndefined();
+  });
 
   it('يقبل إحداثيات العرض والطول الاختيارية الفارغة أو الصالحة ويرفض الخارجة عن النطاق', () => {
     const base = { id: '1', number: 'G1', name: 'مولد 1', location: 'غزة', capacity: '' };

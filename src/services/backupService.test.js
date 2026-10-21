@@ -270,3 +270,21 @@ describe('ربط ملف نسخة احتياطية (File System Access API)', () 
     }
   });
 });
+
+describe('تغيير العداد بساعات فعلية', () => {
+  it('الاستعادة تحسب ساعات تغيير العداد من الفرق، وتقبل السجل القديم (الحالية أقل) بصفر ساعة', () => {
+    const out = validateBackup(
+      backup(
+        [gen('a')],
+        [
+          log('1', 'a', '2026-09-07', { previousReading: 15867.5, currentReading: 15871.5, operatingHours: 4 }),
+          log('2', 'a', '2026-09-08', { recordType: 'meterReset', previousReading: 15749, currentReading: 15754, operatingHours: 0 }),
+          log('3', 'a', '2026-09-09', { previousReading: 15754, currentReading: 15759, operatingHours: 5 }),
+          log('4', 'a', '2026-09-10', { recordType: 'meterReset', previousReading: 15759, currentReading: 10, operatingHours: 7 }),
+        ]
+      ),
+      TODAY
+    );
+    expect(out.logs.map(l => l.operatingHours)).toEqual([4, 5, 5, 0]);
+  });
+});

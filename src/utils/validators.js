@@ -53,8 +53,11 @@ export function validateLog(log, logs) {
     }
   }
 
-  if (log.recordType === 'daily' && Number(log.currentReading) < Number(log.previousReading)) {
-    e.currentReading = 'القراءة الحالية لا تقل عن السابقة في السجل اليومي';
+  if (Number(log.currentReading) < Number(log.previousReading)) {
+    e.currentReading =
+      log.recordType === 'meterReset'
+        ? 'القراءة الحالية لا تقل عن قراءة بداية العداد الجديد'
+        : 'القراءة الحالية لا تقل عن السابقة في السجل اليومي';
   }
 
   if ((log.notes || '').length > 500) e.notes = 'الحد الأقصى 500 حرف';

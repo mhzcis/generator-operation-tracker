@@ -15,7 +15,7 @@ import {
   writeLinkedBackup,
 } from '../services/backupService';
 import { dayName, isoNow } from '../utils/dates';
-import { generatorLogs, latestLog, previousLog, roundHours } from '../utils/calculations';
+import { generatorLogs, latestLog, logHours, previousLog } from '../utils/calculations';
 import { normalizeDefaultGenerator, setDefaultGenerator } from '../utils/generators';
 import { validateGenerator, validateLog } from '../utils/validators';
 
@@ -141,7 +141,8 @@ export function AppProvider({ children }) {
       return { general: 'لا يمكن تعديل سوى آخر سجل للمولد' };
     }
     const prev = previousLog(data.logs, input.generatorId, input.id);
-    const form = prev ? { ...input, previousReading: prev.currentReading } : input;
+    // السجل اليومي يتسلسل من آخر قراءة؛ أما تغيير العداد فقراءته السابقة هي بداية العداد الجديد ويدخلها المستخدم.
+    const form = prev && input.recordType !== 'meterReset' ? { ...input, previousReading: prev.currentReading } : input;
     const e = validateLog(form, data.logs);
     if (Object.keys(e).length) return e;
 
@@ -152,7 +153,7 @@ export function AppProvider({ children }) {
       day: dayName(form.date),
       previousReading: prevNum,
       currentReading: currNum,
-      operatingHours: form.recordType === 'meterReset' ? 0 : roundHours(currNum - prevNum),
+      operatingHours: logHours(form.recordType, prevNum, currNum),
     };
     const now = isoNow();
     let logs;

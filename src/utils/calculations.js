@@ -2,6 +2,17 @@ import { currentMonth, daysAgoISO, nextDay, todayISO } from './dates';
 
 export const roundHours = value => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
+// ساعات تشغيل السجل:
+// - السجل اليومي: الحالية - السابقة.
+// - تغيير العداد: القراءة السابقة هي قراءة بداية العداد الجديد، والساعات = الحالية - السابقة (قد تكون صفرًا).
+// - توافق مع البيانات القديمة: سجل تغيير عداد قراءته الحالية أقل من السابقة (القاعدة القديمة: السابقة من العداد القديم) يُحسب بصفر ساعة.
+export const logHours = (recordType, previousReading, currentReading) => {
+  const prev = Number(previousReading || 0);
+  const curr = Number(currentReading || 0);
+  if (recordType === 'meterReset' && curr < prev) return 0;
+  return roundHours(curr - prev);
+};
+
 export const sortLogs = logs =>
   [...logs].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
 
